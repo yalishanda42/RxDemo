@@ -48,17 +48,14 @@ class Networking {
         return Observable.create { [weak self] observer -> Disposable in
             guard let self = self else { return Disposables.create() }
             
-            let json = ["email": email, "password": pass, "firstname": "asd", "lastname": "asd"]
-            let data = try! JSONSerialization.data(withJSONObject: json, options: [])
-            
-            var request = URLRequest(url: self.endpointUrl)
-            request.httpMethod = "POST"
-            request.httpBody = data
-            request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.addValue("application/json", forHTTPHeaderField: "Accept")
+            let request = self.postRequest(email: email, password: pass)
             
             let task = URLSession.shared.dataTask(with: request) { data, response, error in
-                guard let data = data, let response = response as? HTTPURLResponse, error == nil else {
+                guard
+                    let data = data,
+                    let response = response as? HTTPURLResponse,
+                    error == nil
+                else {
                     print("No data received!")
                     observer.onError(error ?? APIError.unknown)
                     return
@@ -91,5 +88,21 @@ class Networking {
                 task.cancel()
             }
         }
+    }
+    
+    // MARK: - Helpers
+    
+    func postRequest(email: String, password: String) -> URLRequest {
+        let json = ["email": email, "password": password, "firstname": "asd", "lastname": "asd"]
+        
+        let data = try! JSONSerialization.data(withJSONObject: json, options: [])
+
+        var request = URLRequest(url: self.endpointUrl)
+        request.httpMethod = "POST"
+        request.httpBody = data
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+        
+        return request
     }
 }
