@@ -12,12 +12,6 @@ import RxCocoa
 
 class ViewModel {
     
-    enum RegisterState {
-        case initial
-        case failure
-        case success
-    }
-    
     // MARK: - Properties
     
     private lazy var networking = Networking.shared
@@ -25,7 +19,7 @@ class ViewModel {
     private let disposeBag = DisposeBag()
     
     private let messageSubject = BehaviorSubject<String>(value: "")
-    private let registerStateSubject = BehaviorSubject<RegisterState>(value: .initial)
+    private let registerSuccessSubject = PublishSubject<Void>()
         
     // MARK: - Bindings
     
@@ -49,7 +43,7 @@ class ViewModel {
         let isValid = inputIsValid(input)
         let buttonIsEnabled = isValid.asDriver(onErrorJustReturn: false)
         return Output(
-            message: messageSubject.asDriver(onErrorJustReturn: ""),
+            message: message,
             messageIsHidden: messageIsEmpty,
             buttonIsEnabled: buttonIsEnabled,
             registerSuccessful: registerSuccessful
@@ -75,11 +69,10 @@ private extension ViewModel {
             .subscribe(
                 onNext: { [weak self] _ in
                     self?.messageSubject.onNext("")
-                    self?.registerStateSubject.onNext(.success)
+                    self?.registerSuccessSubject.onNext(())
                 },
                 onError: { [weak self] error in
                     self?.messageSubject.onNext((error as? Networking.APIError)?.localizedDescription ?? "Some error occured.")
-                    self?.registerStateSubject.onNext(.failure)
                 }
             ).disposed(by: disposeBag)
     }
@@ -117,18 +110,10 @@ private extension ViewModel {
     }
     
     private var registerSuccessful: Driver<Void> {
-        registerStateSubject
-            .filter { $0 == .success}
-            .map { _ in }
-            .asDriver(onErrorJustReturn: ())
+        registerSuccessSubject.asDriver(onErrorJustReturn: ())
     }
-}
-
-extension String {
-    var isValidEmail: Bool {
-        /* Thanks to https://stackoverflow.com/a/25471164 */
-        let emailRegEx = "[A-Z0-9a-z._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,64}"
-        let emailPred = NSPredicate(format:"SELF MATCHES %@", emailRegEx)
-        return emailPred.evaluate(with: self)
+    
+    private var message: Driver<String> {
+        messageSubject.asDriver(onErrorJustReturn: "")
     }
 }
