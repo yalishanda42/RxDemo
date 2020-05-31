@@ -23,6 +23,7 @@ class ViewController: UIViewController {
     // MARK: - Properties
     
     private let viewModel = ViewModel()
+    private let disposeBag = DisposeBag()
     private let segueId = "success"
     
     // MARK: - Lifecycle
@@ -30,7 +31,17 @@ class ViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        // TODO: Add bindings
+        let output = viewModel.transform(ViewModel.Input(
+            emailText: emailField.rx.text.orEmpty.asObservable(),
+            passwordText: passwordField.rx.text.orEmpty.asObservable(),
+            password2Text: passwordRepeatedField.rx.text.orEmpty.asObservable(),
+            buttonTap: registerButton.rx.tap.asObservable()
+        ))
+        
+        output.buttonIsEnabled.drive(registerButton.rx.isEnabled).disposed(by: disposeBag)
+        output.messageIsHidden.drive(messageLabel.rx.isHidden).disposed(by: disposeBag)
+        output.message.drive(messageLabel.rx.text).disposed(by: disposeBag)
+        output.registerSuccessful.drive(onNext: goToSuccessScreen).disposed(by: disposeBag)
     }
     
     // MARK: - Helpers
