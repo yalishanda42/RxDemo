@@ -19,7 +19,7 @@ class ViewModel {
     private let disposeBag = DisposeBag()
     
     private let messageSubject = BehaviorSubject<String>(value: "")
-    private let registerSuccessSubject = PublishSubject<Void>()
+    private let registerEventSubject = PublishSubject<Void>()
         
     // MARK: - Bindings
     
@@ -31,89 +31,84 @@ class ViewModel {
     }
     
     struct Output {
-        let message: Driver<String>
+        let messageText: Driver<String>
         let messageIsHidden: Driver<Bool>
         let buttonIsEnabled: Driver<Bool>
         let registerSuccessful: Driver<Void>
     }
     
     func transform(_ input: Input) -> Output {
-        requestHandler(input)
-        handleInvalidInput(input)
-        let isValid = inputIsValid(input)
-        let buttonIsEnabled = isValid.asDriver(onErrorJustReturn: false)
+        handleValidInputMessage(input)
+        handleRegisterButtonTap(input)
+        
         return Output(
-            message: message,
+            messageText: messageText,
             messageIsHidden: messageIsEmpty,
-            buttonIsEnabled: buttonIsEnabled,
+            buttonIsEnabled: inputIsValid(input),
             registerSuccessful: registerSuccessful
         )
     }
 }
 
+// MARK: - Helpers
+
 private extension ViewModel {
-    func requestHandler(_ input: Input) {
-        input.buttonTap
-            .withLatestFrom(
-                Observable.combineLatest(
-                    input.emailText,
-                    input.passwordText
-                )
-            ).subscribe(onNext: sendRegisterRequest(email:pass:))
-            .disposed(by: disposeBag)
+    var messageText: Driver<String> {
+        messageSubject.asDriver(onErrorJustReturn: "")
     }
     
-    func sendRegisterRequest(email: String, pass: String) {
-        networking
-            .registerUser(email: email, pass: pass)
-            .subscribe(
-                onNext: { [weak self] _ in
-                    self?.messageSubject.onNext("")
-                    self?.registerSuccessSubject.onNext(())
-                },
-                onError: { [weak self] error in
-                    self?.messageSubject.onNext((error as? Networking.APIError)?.localizedDescription ?? "Some error occured.")
-                }
-            ).disposed(by: disposeBag)
+    var messageIsEmpty: Driver<Bool> {
+        messageText.map { $0.isEmpty }
     }
     
-    func inputIsValid(_ input: Input) -> Observable<Bool> {
+    var registerSuccessful: Driver<Void> {
+        registerEventSubject.asDriver(onErrorDriveWith: Driver.never())
+    }
+    
+    func inputIsValid(_ input: Input) -> Driver<Bool> {
         Observable
             .combineLatest(input.emailText, input.passwordText, input.password2Text)
             .map { email, pass1, pass2 in
                 !email.isEmpty && !pass1.isEmpty && email.isValidEmail && pass1 == pass2
-            }
+            }.asDriver(onErrorJustReturn: false)
     }
     
-    func handleInvalidInput(_ input: Input) {
+    func handleValidInputMessage(_ input: Input) {
         Observable
             .combineLatest(input.emailText, input.passwordText, input.password2Text)
-            .subscribe(onNext: { [unowned self] email, pass1, pass2 in
+            .map { email, pass1, pass2 in
                 if email.isEmpty {
-                    self.messageSubject.onNext("Please fill in your e-mail.")
+                    return "Please provide an e-mail."
                 } else if !email.isValidEmail {
-                    self.messageSubject.onNext("Please provide a valid e-mail!")
+                    return "E-mail address is not valid."
                 } else if pass1.isEmpty {
-                    self.messageSubject.onNext("Please create a password.")
+                    return "Please create a password."
                 } else if pass2.isEmpty {
-                    self.messageSubject.onNext("Please type your password again.")
-                } else if pass2 != pass1 {
-                    self.messageSubject.onNext("Passwords should match!")
+                    return "Please repeat your password in the second field."
+                } else if pass1 != pass2 {
+                    return "Passwords should match!"
                 } else {
-                    self.messageSubject.onNext("")
+                    return ""
                 }
-            }).disposed(by: disposeBag)
+            }.subscribe(messageSubject)
+            .disposed(by: disposeBag)
     }
     
-    private var messageIsEmpty: Driver<Bool> {
-        messageSubject.map { $0.isEmpty }.asDriver(onErrorJustReturn: true)
-    }
-    
-    private var registerSuccessful: Driver<Void> {
-        registerSuccessSubject.asDriver(onErrorJustReturn: ())
-    }
-    
-    private var message: Driver<String> {
-        messageSubject.asDriver(onErrorJustReturn: "")
+    func handleRegisterButtonTap(_ input: Input) {
+        let result = input.buttonTap
+            .withLatestFrom(Observable.combineLatest(input.emailText, input.passwordText))
+            .flatMapLatest { email, pass in
+                self.networking
+                    .registerUser(email: email, pass: pass)
+                    .catchError({ error in
+                        let errorMessage = (error as? Networking.APIError)?.localizedDescription
+                                            ?? error.localizedDescription
+                        self.messageSubject.onNext(errorMessage)
+                        return .empty()
+                    })
+            }.share()
+        
+        result.map { _ in "" }.subscribe(messageSubject).disposed(by: disposeBag)
+        result.map { _ in }.subscribe(registerEventSubject).disposed(by: disposeBag)
     }
 }

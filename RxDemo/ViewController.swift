@@ -40,7 +40,7 @@ class ViewController: UIViewController {
         
         output.buttonIsEnabled.drive(registerButton.rx.isEnabled).disposed(by: disposeBag)
         output.messageIsHidden.drive(messageLabel.rx.isHidden).disposed(by: disposeBag)
-        output.message.drive(messageLabel.rx.text).disposed(by: disposeBag)
+        output.messageText.drive(messageLabel.rx.text).disposed(by: disposeBag)
         output.registerSuccessful.drive(onNext: goToSuccessScreen).disposed(by: disposeBag)
     }
     

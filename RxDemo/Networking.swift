@@ -45,7 +45,7 @@ class Networking {
     // MARK: - Register user
     
     func registerUser(email: String, pass: String) -> Observable<String> {
-        return Observable.create { [weak self] observer -> Disposable in
+        Observable.create { [weak self] observer -> Disposable in
             guard let self = self else { return Disposables.create() }
             
             let request = self.postRequest(email: email, password: pass)
@@ -86,7 +86,9 @@ class Networking {
         }
     }
     
-    func postRequest(email: String, password: String) -> URLRequest {
+    // MARK: - Helpers
+    
+    private func postRequest(email: String, password: String) -> URLRequest {
         let json = ["email": email, "password": password, "firstname": "asd", "lastname": "asd"]
         let data = try! JSONSerialization.data(withJSONObject: json, options: [])
         
